@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code Generator</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>QR Code Generator</h1>
+            <p>Generate QR codes instantly from any text or URL</p>
+        </div>
+
+        <div class="main-content">
+            <div class="input-section">
+                <input type="text" id="dataInput" placeholder="Enter text or URL..." class="input-field">
+                <button id="generateBtn" class="btn btn-primary">Generate QR Code</button>
+            </div>
+
+            <div class="qr-display">
+                <div id="qrContainer" class="qr-container">
+                    <p class="placeholder-text">Your QR code will appear here</p>
+                </div>
+                <button id="downloadBtn" class="btn btn-secondary" style="display:none;">Download QR Code</button>
+            </div>
+        </div>
+
+        <div class="history-section">
+            <h2>QR Code History</h2>
+            <div id="historyContainer" class="history-container">
+                <p class="placeholder-text">No QR codes generated yet</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const dataInput = document.getElementById('dataInput');
+        const generateBtn = document.getElementById('generateBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const qrContainer = document.getElementById('qrContainer');
+        const historyContainer = document.getElementById('historyContainer');
+
+        const API_URL = 'http://localhost:5000';
+
+        generateBtn.addEventListener('click', generateQRCode);
+        dataInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') generateQRCode();
+        });
+
+        downloadBtn.addEventListener('click', downloadQRCode);
+
+        async function generateQRCode() {
+            const data = dataInput.value.trim();
+            
+            if (!data) {
+                alert('Please enter text or URL');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ data })
+                });
+
+                if (!response.ok) throw new Error('Failed to generate QR code');
+
+                const result = await response.json();
+                displayQRCode(data);
+                loadHistory();
+                dataInput.value = '';
+                downloadBtn.style.display = 'block';
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        function displayQRCode(data) {
+            qrContainer.innerHTML = '';
+            const qr = QRCode(0, 'M');
+            qr.addData(data);
+            qr.make();
+            const qrImage = qr.createImgTag(5);
+            qrContainer.innerHTML = qrImage;
+        }
+
+        async function loadHistory() {
+            try {
+                const response = await fetch(`${API_URL}/history`);
+                const records = await response.json();
+
+                if (records.length === 0) {
+                    historyContainer.innerHTML = '<p class="placeholder-text">No QR codes generated yet</p>';
+                    return;
+                }
+
+                historyContainer.innerHTML = records.map(record => `
+                    <div class="history-item">
+                        <p><strong>${record.data}</strong></p>
+                        <small>${new Date(record.created_at).toLocaleString()}</small>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading history:', error);
+            }
+        }
+
+        function downloadQRCode() {
+            const canvas = qrContainer.querySelector('canvas');
+            if (!canvas) return;
+
+            const link = document.createElement('a');
+            link.href = canvas.toDataURL('image/png');
+            link.download = `qr-${Date.now()}.png`;
+            link.click();
+        }
+
+        // Load history on page load
+        window.addEventListener('load', loadHistory);
+    </script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode.js/1.5.3/qrcode.min.js"></script>
+</body>
+</html>
